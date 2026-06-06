@@ -1,0 +1,38 @@
+name: StashTV
+options:
+  bundleIdPrefix: com.paulcarroll
+  deploymentTarget:
+    tvOS: "17.0"
+  createIntermediateGroups: true
+  groupSortPosition: top
+  developmentLanguage: en
+
+settings:
+  base:
+    SWIFT_VERSION: "5.10"
+    MARKETING_VERSION: "0.1.0"
+    CURRENT_PROJECT_VERSION: "1"
+    ENABLE_USER_SCRIPT_SANDBOXING: YES
+    SWIFT_STRICT_CONCURRENCY: complete
+
+targets:
+  StashTV:
+    type: application
+    platform: tvOS
+    sources:
+      - path: StashTV
+    info:
+      path: StashTV/Info.plist
+      properties:
+        CFBundleDisplayName: StashTV
+        UILaunchScreen: {}
+        UIRequiredDeviceCapabilities:
+          - arm64
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.paulcarroll.stashtv
+        TARGETED_DEVICE_FAMILY: "3"
+        ASSETCATALOG_COMPILER_APPICON_NAME: "App Icon & Top Shelf Image"
+        SWIFT_EMIT_LOC_STRINGS: YES
+        GENERATE_INFOPLIST_FILE: NO
+        INFOPLIST_KEY_CFBundleDisplayName: StashTV
