@@ -2,7 +2,7 @@ import SwiftUI
 
 @MainActor
 @Observable
-final class GroupsBrowseViewModel {
+final class PerformersBrowseViewModel {
     enum Status {
         case idle
         case loadingInitial
@@ -11,7 +11,7 @@ final class GroupsBrowseViewModel {
     }
 
     private(set) var status: Status = .idle
-    private(set) var groups: [Group] = []
+    private(set) var performers: [Performer] = []
     private(set) var totalCount: Int = 0
     private(set) var isLoadingMore = false
 
@@ -25,14 +25,14 @@ final class GroupsBrowseViewModel {
         self.prefetchMargin = prefetchMargin
     }
 
-    var hasMore: Bool { groups.count < totalCount }
+    var hasMore: Bool { performers.count < totalCount }
 
     func loadInitial(using config: ServerConfig) async {
         guard case .idle = status else { return }
         loadToken &+= 1
         let token = loadToken
         currentPage = 0
-        groups = []
+        performers = []
         totalCount = 0
         status = .loadingInitial
         await loadPage(1, using: config, token: token, isInitial: true)
@@ -43,10 +43,10 @@ final class GroupsBrowseViewModel {
         await loadInitial(using: config)
     }
 
-    func prefetchIfNeeded(currentItem group: Group, using config: ServerConfig) async {
+    func prefetchIfNeeded(currentItem performer: Performer, using config: ServerConfig) async {
         guard hasMore, !isLoadingMore else { return }
-        guard let index = groups.firstIndex(of: group),
-              index >= groups.count - prefetchMargin else { return }
+        guard let index = performers.firstIndex(of: performer),
+              index >= performers.count - prefetchMargin else { return }
         let token = loadToken
         await loadPage(currentPage + 1, using: config, token: token, isInitial: false)
     }
@@ -56,11 +56,11 @@ final class GroupsBrowseViewModel {
         defer { if !isInitial { isLoadingMore = false } }
         do {
             let client = try StashClient.make(from: config)
-            let result = try await client.execute(FindGroupsQuery(page: page, perPage: perPage))
+            let result = try await client.execute(FindPerformersQuery(page: page, perPage: perPage))
             guard token == loadToken else { return }
             currentPage = page
-            groups.append(contentsOf: result.findGroups.groups)
-            totalCount = result.findGroups.count
+            performers.append(contentsOf: result.findPerformers.performers)
+            totalCount = result.findPerformers.count
             status = .loaded
         } catch {
             guard token == loadToken else { return }
@@ -68,15 +68,15 @@ final class GroupsBrowseViewModel {
             if isInitial {
                 status = .failed(message: message)
             } else {
-                print("[Groups] page \(page) load failed: \(message)")
+                print("[Performers] page \(page) load failed: \(message)")
             }
         }
     }
 }
 
-struct GroupsBrowseView: View {
+struct PerformersBrowseView: View {
     @Environment(ServerConfig.self) private var config
-    @State private var viewModel = GroupsBrowseViewModel()
+    @State private var viewModel = PerformersBrowseViewModel()
 
     private let columns = Array(repeating: GridItem(.flexible(), spacing: 80), count: 3)
 
@@ -85,7 +85,7 @@ struct GroupsBrowseView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 32) {
                     HStack {
-                        Text("Groups")
+                        Text("Performers")
                             .font(.largeTitle).bold()
                         Spacer()
                     }
@@ -94,8 +94,8 @@ struct GroupsBrowseView: View {
                 .padding(60)
             }
             .toolbar(.hidden, for: .navigationBar)
-            .navigationDestination(for: Group.self) { group in
-                GroupDetailView(group: group)
+            .navigationDestination(for: Performer.self) { performer in
+                PerformerDetailView(performer: performer)
             }
             .navigationDestination(for: ScenePlaylist.self) { playlist in
                 ScenePlayerView(playlist: playlist)
@@ -108,7 +108,7 @@ struct GroupsBrowseView: View {
     private var content: some View {
         switch viewModel.status {
         case .idle, .loadingInitial:
-            ProgressView("Loading groups…")
+            ProgressView("Loading performers…")
                 .frame(maxWidth: .infinity, minHeight: 600)
         case .failed(let message):
             VStack(spacing: 24) {
@@ -121,8 +121,8 @@ struct GroupsBrowseView: View {
             }
             .frame(maxWidth: .infinity, minHeight: 600)
         case .loaded:
-            if viewModel.groups.isEmpty {
-                Text("No groups on this server.")
+            if viewModel.performers.isEmpty {
+                Text("No performers on this server.")
                     .font(.title3)
                     .foregroundStyle(.secondary)
                     .frame(maxWidth: .infinity, minHeight: 600)
@@ -135,7 +135,7 @@ struct GroupsBrowseView: View {
     private var grid: some View {
         VStack(alignment: .leading, spacing: 24) {
             HStack {
-                Text("\(viewModel.groups.count) of \(viewModel.totalCount)")
+                Text("\(viewModel.performers.count) of \(viewModel.totalCount)")
                     .font(.headline)
                     .foregroundStyle(.secondary)
                 if viewModel.isLoadingMore {
@@ -143,10 +143,10 @@ struct GroupsBrowseView: View {
                 }
             }
             LazyVGrid(columns: columns, spacing: 80) {
-                ForEach(viewModel.groups) { group in
-                    GroupCardView(group: group, apiKey: config.apiKey)
-                        .task(id: group.id) {
-                            await viewModel.prefetchIfNeeded(currentItem: group, using: config)
+                ForEach(viewModel.performers) { performer in
+                    PerformerCardView(performer: performer, apiKey: config.apiKey)
+                        .task(id: performer.id) {
+                            await viewModel.prefetchIfNeeded(currentItem: performer, using: config)
                         }
                 }
             }

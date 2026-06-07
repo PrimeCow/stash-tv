@@ -28,6 +28,8 @@ struct RootView: View {
                         .tabItem { Label("Scenes", systemImage: "play.rectangle.fill") }
                     MarkersBrowseView()
                         .tabItem { Label("Markers", systemImage: "bookmark.fill") }
+                    PerformersBrowseView()
+                        .tabItem { Label("Performers", systemImage: "person.fill") }
                     GroupsBrowseView()
                         .tabItem { Label("Groups", systemImage: "rectangle.stack.fill") }
                 }
