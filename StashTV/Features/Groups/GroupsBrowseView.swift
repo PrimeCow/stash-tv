@@ -83,10 +83,17 @@ struct GroupsBrowseView: View {
     var body: some View {
         NavigationStack {
             ScrollView {
-                content
-                    .padding(60)
+                VStack(alignment: .leading, spacing: 32) {
+                    HStack {
+                        Text("Groups")
+                            .font(.largeTitle).bold()
+                        Spacer()
+                    }
+                    content
+                }
+                .padding(60)
             }
-            .navigationTitle("Groups")
+            .toolbar(.hidden, for: .navigationBar)
             .navigationDestination(for: Group.self) { group in
                 GroupDetailView(group: group)
             }

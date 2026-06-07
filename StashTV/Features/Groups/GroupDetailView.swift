@@ -45,7 +45,7 @@ struct GroupDetailView: View {
             }
             .padding(60)
         }
-        .navigationTitle(group.displayTitle)
+        .toolbar(.hidden, for: .navigationBar)
         .task { await viewModel.load(groupID: group.id, using: config) }
     }
 

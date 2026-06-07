@@ -105,6 +105,7 @@ struct BrowseView: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 32) {
+                    inlineHeader
                     if !chips.isEmpty {
                         FilterChipBarView(chips: chips, activeID: chipBinding)
                     }
@@ -112,34 +113,9 @@ struct BrowseView: View {
                 }
                 .padding(60)
             }
-            .navigationTitle("StashTV")
+            .toolbar(.hidden, for: .navigationBar)
             .navigationDestination(for: ScenePlaylist.self) { playlist in
                 ScenePlayerView(playlist: playlist)
-            }
-            .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    Button {
-                        showManageSheet = true
-                    } label: {
-                        Image(systemName: "slider.horizontal.3")
-                    }
-                    .accessibilityLabel("Filters")
-                }
-                ToolbarItem(placement: .topBarLeading) {
-                    Button {
-                        Task { await viewModel.refresh(using: config) }
-                    } label: {
-                        Image(systemName: "arrow.clockwise")
-                    }
-                    .accessibilityLabel("Refresh")
-                    .disabled(isLoading)
-                }
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button("Sign Out", role: .destructive) {
-                        config.serverURL = nil
-                        config.apiKey = nil
-                    }
-                }
             }
         }
         .task {
@@ -255,6 +231,35 @@ struct BrowseView: View {
               id != FilterPreferences.recentScenesID
         else { return nil }
         return catalog.savedFilters.first { $0.id == id }
+    }
+
+    private var inlineHeader: some View {
+        HStack(spacing: 24) {
+            Text("StashTV")
+                .font(.largeTitle).bold()
+            Spacer()
+            Button {
+                showManageSheet = true
+            } label: {
+                Image(systemName: "slider.horizontal.3")
+            }
+            .buttonStyle(.bordered)
+            .accessibilityLabel("Filters")
+            Button {
+                Task { await viewModel.refresh(using: config) }
+            } label: {
+                Image(systemName: "arrow.clockwise")
+            }
+            .buttonStyle(.bordered)
+            .accessibilityLabel("Refresh")
+            .disabled(isLoading)
+            Button("Sign Out") {
+                config.serverURL = nil
+                config.apiKey = nil
+            }
+            .buttonStyle(.bordered)
+        }
+        .focusSection()
     }
 
     private var isLoading: Bool {
