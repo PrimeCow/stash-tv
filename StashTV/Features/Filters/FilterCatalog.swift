@@ -11,8 +11,14 @@ final class FilterCatalog {
         case failed(message: String)
     }
 
+    let mode: FilterPreferences.Mode
+
     private(set) var status: Status = .idle
     private(set) var savedFilters: [SavedFilter] = []
+
+    init(mode: FilterPreferences.Mode) {
+        self.mode = mode
+    }
 
     func loadIfNeeded(using config: ServerConfig) async {
         guard case .idle = status else { return }
@@ -29,7 +35,7 @@ final class FilterCatalog {
         status = .loading
         do {
             let client = try StashClient.make(from: config)
-            let result = try await client.execute(FindSavedFiltersQuery(mode: "SCENES"))
+            let result = try await client.execute(FindSavedFiltersQuery(mode: mode.stashFilterModeName))
             savedFilters = result.findSavedFilters.sorted {
                 $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending
             }

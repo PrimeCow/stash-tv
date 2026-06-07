@@ -8,6 +8,8 @@ struct RootView: View {
             TabView {
                 BrowseView()
                     .tabItem { Label("Scenes", systemImage: "play.rectangle.fill") }
+                MarkersBrowseView()
+                    .tabItem { Label("Markers", systemImage: "bookmark.fill") }
                 GroupsBrowseView()
                     .tabItem { Label("Groups", systemImage: "rectangle.stack.fill") }
             }

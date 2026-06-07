@@ -43,6 +43,10 @@ struct ScenePlayerView: View {
         }
         let queuePlayer = AVQueuePlayer(items: Array(items))
         queuePlayer.automaticallyWaitsToMinimizeStalling = true
+        if let startTime = playlist.startTime, startTime > 0 {
+            let time = CMTime(seconds: startTime, preferredTimescale: 600)
+            queuePlayer.seek(to: time, toleranceBefore: .zero, toleranceAfter: .positiveInfinity)
+        }
         player = queuePlayer
         queuePlayer.play()
     }

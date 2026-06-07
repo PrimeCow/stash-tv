@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct ManageFiltersView: View {
+    let mode: FilterPreferences.Mode
     let catalog: FilterCatalog
     @Bindable var prefs: FilterPreferences
 
@@ -12,7 +13,7 @@ struct ManageFiltersView: View {
             Divider()
             ScrollView {
                 VStack(alignment: .leading, spacing: 48) {
-                    recentScenesSection
+                    recentSection
                     savedFiltersSection
                 }
                 .padding(.horizontal, 100)
@@ -25,7 +26,7 @@ struct ManageFiltersView: View {
 
     private var header: some View {
         HStack {
-            Text("Filters")
+            Text(headerTitle)
                 .font(.largeTitle).bold()
             Spacer()
             Button("Done") { dismiss() }
@@ -36,12 +37,12 @@ struct ManageFiltersView: View {
         .background(.regularMaterial)
     }
 
-    private var recentScenesSection: some View {
+    private var recentSection: some View {
         VStack(alignment: .leading, spacing: 16) {
             SectionHeading("General")
-            Toggle("Show Recent Scenes", isOn: $prefs.showRecentScenes)
+            Toggle(recentToggleTitle, isOn: recentBinding)
                 .font(.title3)
-            Text("When off, only your enabled saved filters appear at the top of the browse view.")
+            Text(recentFooter)
                 .font(.footnote)
                 .foregroundStyle(.secondary)
         }
@@ -61,12 +62,12 @@ struct ManageFiltersView: View {
                     .foregroundStyle(.red)
             case .loaded:
                 if catalog.savedFilters.isEmpty {
-                    Text("No saved scene filters on this server.")
+                    Text(emptyFiltersMessage)
                         .foregroundStyle(.secondary)
                 } else {
                     VStack(spacing: 12) {
                         ForEach(catalog.savedFilters) { filter in
-                            Toggle(filter.name, isOn: binding(for: filter))
+                            Toggle(filter.name, isOn: enabledBinding(for: filter))
                                 .font(.title3)
                         }
                     }
@@ -75,14 +76,62 @@ struct ManageFiltersView: View {
         }
     }
 
-    private func binding(for filter: SavedFilter) -> Binding<Bool> {
-        Binding(
-            get: { prefs.enabledFilterIDs.contains(filter.id) },
-            set: { isOn in
-                if isOn { prefs.enabledFilterIDs.insert(filter.id) }
-                else { prefs.enabledFilterIDs.remove(filter.id) }
-            }
-        )
+    private var headerTitle: String {
+        switch mode {
+        case .scenes: return "Scene Filters"
+        case .markers: return "Marker Filters"
+        }
+    }
+
+    private var recentToggleTitle: String {
+        switch mode {
+        case .scenes: return "Show Recent Scenes"
+        case .markers: return "Show Recent Markers"
+        }
+    }
+
+    private var recentFooter: String {
+        switch mode {
+        case .scenes: return "When off, only your enabled saved filters appear at the top of the browse view."
+        case .markers: return "When off, only your enabled saved filters appear at the top of the markers view."
+        }
+    }
+
+    private var emptyFiltersMessage: String {
+        switch mode {
+        case .scenes: return "No saved scene filters on this server."
+        case .markers: return "No saved marker filters on this server."
+        }
+    }
+
+    private var recentBinding: Binding<Bool> {
+        switch mode {
+        case .scenes:
+            return Binding(get: { prefs.showRecentScenes }, set: { prefs.showRecentScenes = $0 })
+        case .markers:
+            return Binding(get: { prefs.showRecentMarkers }, set: { prefs.showRecentMarkers = $0 })
+        }
+    }
+
+    private func enabledBinding(for filter: SavedFilter) -> Binding<Bool> {
+        switch mode {
+        case .scenes:
+            return Binding(
+                get: { prefs.enabledFilterIDs.contains(filter.id) },
+                set: { isOn in
+                    if isOn { prefs.enabledFilterIDs.insert(filter.id) }
+                    else { prefs.enabledFilterIDs.remove(filter.id) }
+                }
+            )
+        case .markers:
+            return Binding(
+                get: { prefs.enabledMarkerFilterIDs.contains(filter.id) },
+                set: { isOn in
+                    if isOn { prefs.enabledMarkerFilterIDs.insert(filter.id) }
+                    else { prefs.enabledMarkerFilterIDs.remove(filter.id) }
+                }
+            )
+        }
     }
 }
 
