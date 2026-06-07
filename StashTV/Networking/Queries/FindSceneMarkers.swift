@@ -45,6 +45,7 @@ struct FindSceneMarkersQuery: GraphQLOperation {
             details
             date
             rating100
+            o_counter
             paths { screenshot preview stream }
             files { basename duration width height }
             studio { id name image_path }

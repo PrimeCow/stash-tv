@@ -6,6 +6,7 @@ struct Scene: Identifiable, Decodable, Hashable {
     let details: String?
     let date: String?
     let rating100: Int?
+    let o_counter: Int?
     let paths: ScenePaths
     let files: [SceneFile]
     let studio: Studio?

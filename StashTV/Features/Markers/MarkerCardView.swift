@@ -4,36 +4,46 @@ struct MarkerCardView: View {
     let marker: SceneMarker
     let apiKey: String?
 
+    @Environment(SceneStatsStore.self) private var stats
+
     var body: some View {
         NavigationLink(value: ScenePlaylist.single(marker.scene, startTime: marker.seconds)) {
             VStack(alignment: .leading, spacing: 12) {
-                ZStack(alignment: .bottomTrailing) {
-                    ZStack {
-                        Color.gray.opacity(0.2)
-                        if let url = imageURL {
-                            AsyncImage(url: url) { phase in
-                                switch phase {
-                                case .success(let image):
-                                    image.resizable().scaledToFill()
-                                case .failure, .empty:
-                                    Image(systemName: "bookmark.fill")
-                                        .font(.system(size: 60))
-                                        .foregroundStyle(.secondary)
-                                @unknown default:
-                                    EmptyView()
+                ZStack(alignment: .topLeading) {
+                    ZStack(alignment: .bottomTrailing) {
+                        ZStack {
+                            Color.gray.opacity(0.2)
+                            if let url = imageURL {
+                                AsyncImage(url: url) { phase in
+                                    switch phase {
+                                    case .success(let image):
+                                        image.resizable().scaledToFill()
+                                    case .failure, .empty:
+                                        Image(systemName: "bookmark.fill")
+                                            .font(.system(size: 60))
+                                            .foregroundStyle(.secondary)
+                                    @unknown default:
+                                        EmptyView()
+                                    }
                                 }
                             }
                         }
-                    }
-                    .aspectRatio(16/9, contentMode: .fit)
-                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                        .aspectRatio(16/9, contentMode: .fit)
+                        .clipShape(RoundedRectangle(cornerRadius: 12))
 
-                    Text(marker.formattedTimecode)
-                        .font(.footnote.monospacedDigit())
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 4)
-                        .background(.ultraThinMaterial, in: Capsule())
-                        .padding(8)
+                        Text(marker.formattedTimecode)
+                            .font(.footnote.monospacedDigit())
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 4)
+                            .background(.ultraThinMaterial, in: Capsule())
+                            .padding(8)
+                    }
+
+                    if effectiveOCount > 0 {
+                        OCountBadge(count: effectiveOCount)
+                            .padding(12)
+                            .frame(maxWidth: .infinity, alignment: .trailing)
+                    }
                 }
 
                 VStack(alignment: .leading, spacing: 6) {
@@ -58,5 +68,9 @@ struct MarkerCardView: View {
 
     private var imageURL: URL? {
         StashURL.authenticated(marker.screenshot ?? marker.scene.paths.screenshot, apiKey: apiKey)
+    }
+
+    private var effectiveOCount: Int {
+        stats.oCounter(for: marker.scene.id, fallback: marker.scene.o_counter) ?? 0
     }
 }
