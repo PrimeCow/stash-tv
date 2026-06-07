@@ -33,7 +33,7 @@ actor StashClient {
         do {
             request.httpBody = try encoder.encode(body)
         } catch {
-            throw StashError.decoding(error)
+            throw StashError.decoding(error, bodyPreview: nil)
         }
 
         let data: Data
@@ -45,14 +45,17 @@ actor StashClient {
         }
 
         if let http = response as? HTTPURLResponse, !(200..<300).contains(http.statusCode) {
-            throw StashError.httpStatus(http.statusCode)
+            throw StashError.httpStatus(http.statusCode, bodyPreview: Self.preview(of: data))
         }
 
         let envelope: GraphQLResponse<Op.Response>
         do {
             envelope = try decoder.decode(GraphQLResponse<Op.Response>.self, from: data)
         } catch {
-            throw StashError.decoding(error)
+            #if DEBUG
+            print("[StashClient] decode failed for \(endpoint.absoluteString):\n\(String(data: data, encoding: .utf8) ?? "<\(data.count) bytes>")")
+            #endif
+            throw StashError.decoding(error, bodyPreview: Self.preview(of: data))
         }
 
         if let errors = envelope.errors, !errors.isEmpty {
@@ -70,5 +73,14 @@ extension StashClient {
     static func make(from config: ServerConfig) throws -> StashClient {
         guard let url = config.serverURL else { throw StashError.missingConfiguration }
         return StashClient(serverURL: url, apiKey: config.apiKey)
+    }
+
+    fileprivate static func preview(of data: Data, maxLength: Int = 300) -> String {
+        let slice = data.prefix(maxLength)
+        if let text = String(data: slice, encoding: .utf8) {
+            let suffix = data.count > maxLength ? "…" : ""
+            return text.trimmingCharacters(in: .whitespacesAndNewlines) + suffix
+        }
+        return "<\(data.count) bytes of non-UTF-8 data>"
     }
 }

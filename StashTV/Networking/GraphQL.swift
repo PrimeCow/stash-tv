@@ -42,18 +42,47 @@ struct GraphQLError: Decodable, Error, CustomStringConvertible {
 
 enum StashError: Error, LocalizedError {
     case missingConfiguration
-    case httpStatus(Int)
+    case httpStatus(Int, bodyPreview: String?)
     case graphQL([GraphQLError])
-    case decoding(Error)
+    case decoding(Error, bodyPreview: String?)
     case transport(Error)
 
     var errorDescription: String? {
         switch self {
         case .missingConfiguration: "Server URL is not configured."
-        case .httpStatus(let code): "Server returned HTTP \(code)."
+        case .httpStatus(let code, let preview):
+            "Server returned HTTP \(code).\(Self.formatPreview(preview))"
         case .graphQL(let errors): errors.map(\.message).joined(separator: "; ")
-        case .decoding(let error): "Decoding failed: \(error.localizedDescription)"
+        case .decoding(let error, let preview):
+            "Decoding failed: \(Self.describe(decodingError: error))\(Self.formatPreview(preview))"
         case .transport(let error): error.localizedDescription
         }
+    }
+
+    private static func formatPreview(_ preview: String?) -> String {
+        guard let preview, !preview.isEmpty else { return "" }
+        return "\n\nServer response (first \(preview.count) chars):\n\(preview)"
+    }
+
+    private static func describe(decodingError error: Error) -> String {
+        guard let decodingError = error as? DecodingError else {
+            return error.localizedDescription
+        }
+        switch decodingError {
+        case .typeMismatch(let type, let ctx):
+            return "type mismatch (\(type)) at \(path(ctx.codingPath)): \(ctx.debugDescription)"
+        case .valueNotFound(let type, let ctx):
+            return "missing value (\(type)) at \(path(ctx.codingPath)): \(ctx.debugDescription)"
+        case .keyNotFound(let key, let ctx):
+            return "missing key '\(key.stringValue)' at \(path(ctx.codingPath))"
+        case .dataCorrupted(let ctx):
+            return "data corrupted at \(path(ctx.codingPath)): \(ctx.debugDescription)"
+        @unknown default:
+            return decodingError.localizedDescription
+        }
+    }
+
+    private static func path(_ codingPath: [CodingKey]) -> String {
+        codingPath.isEmpty ? "<root>" : codingPath.map(\.stringValue).joined(separator: ".")
     }
 }

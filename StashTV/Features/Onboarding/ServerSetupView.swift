@@ -25,7 +25,7 @@ struct ServerSetupView: View {
 
             VStack(alignment: .leading, spacing: 24) {
                 LabeledField(label: "Server URL", placeholder: "https://stash.example.com", text: $serverText)
-                LabeledField(label: "API Key (optional)", placeholder: "paste API key", text: $apiKeyText, secure: true)
+                LabeledField(label: "API Key (optional)", placeholder: "paste API key", text: $apiKeyText)
             }
             .frame(maxWidth: 900)
 
@@ -98,22 +98,25 @@ private struct LabeledField: View {
     let label: String
     let placeholder: String
     @Binding var text: String
-    var secure: Bool = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text(label)
-                .font(.headline)
-                .foregroundStyle(.secondary)
-            Group {
-                if secure {
-                    SecureField(placeholder, text: $text)
-                } else {
-                    TextField(placeholder, text: $text)
+            HStack {
+                Text(label)
+                    .font(.headline)
+                    .foregroundStyle(.secondary)
+                Spacer()
+                if !text.isEmpty {
+                    Button(role: .destructive) {
+                        text = ""
+                    } label: {
+                        Label("Clear", systemImage: "xmark.circle")
+                            .font(.caption)
+                    }
                 }
             }
-            .textFieldStyle(.plain)
-            .font(.title3)
+            TextField(placeholder, text: $text)
+                .font(.title3)
         }
     }
 }

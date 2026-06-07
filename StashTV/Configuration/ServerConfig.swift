@@ -19,13 +19,24 @@ final class ServerConfig {
 
     var isConfigured: Bool { serverURL != nil }
 
-    init(defaults: UserDefaults = .standard, keychain: KeychainStore = .shared) {
+    init(
+        defaults: UserDefaults = .standard,
+        keychain: KeychainStore = .shared,
+        environment: [String: String] = ProcessInfo.processInfo.environment
+    ) {
         self.defaults = defaults
         self.keychain = keychain
         if let raw = defaults.string(forKey: Keys.serverURL), let url = URL(string: raw) {
             self.serverURL = url
         }
         self.apiKey = try? keychain.read(account: Keys.keychainAccount)
+
+        if let envURL = environment["STASH_SERVER_URL"].flatMap(URL.init(string:)) {
+            self.serverURL = envURL
+        }
+        if let envKey = environment["STASH_API_KEY"], !envKey.isEmpty {
+            self.apiKey = envKey
+        }
     }
 
     private let defaults: UserDefaults

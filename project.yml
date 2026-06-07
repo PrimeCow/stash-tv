@@ -28,6 +28,9 @@ targets:
         UILaunchScreen: {}
         UIRequiredDeviceCapabilities:
           - arm64
+        NSAppTransportSecurity:
+          NSAllowsArbitraryLoads: true
+        NSLocalNetworkUsageDescription: StashTV connects to your self-hosted Stash server on the local network.
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.paulcarroll.stashtv
@@ -36,3 +39,11 @@ targets:
         SWIFT_EMIT_LOC_STRINGS: YES
         GENERATE_INFOPLIST_FILE: NO
         INFOPLIST_KEY_CFBundleDisplayName: StashTV
+    scheme:
+      environmentVariables:
+        - variable: STASH_SERVER_URL
+          value: ""
+          isEnabled: false
+        - variable: STASH_API_KEY
+          value: ""
+          isEnabled: false
