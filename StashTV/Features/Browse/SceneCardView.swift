@@ -5,13 +5,11 @@ struct SceneCardView: View {
     let apiKey: String?
 
     var body: some View {
-        Button {
-            // TODO: push player view in a follow-up.
-        } label: {
+        NavigationLink(value: scene) {
             VStack(alignment: .leading, spacing: 12) {
                 ZStack {
                     Color.gray.opacity(0.2)
-                    if let url = authenticatedURL(scene.paths.screenshot) {
+                    if let url = StashURL.authenticated(scene.paths.screenshot, apiKey: apiKey) {
                         AsyncImage(url: url) { phase in
                             switch phase {
                             case .success(let image):
@@ -43,15 +41,5 @@ struct SceneCardView: View {
             }
         }
         .buttonStyle(.card)
-    }
-
-    private func authenticatedURL(_ path: String?) -> URL? {
-        guard let path, var components = URLComponents(string: path) else { return nil }
-        if let apiKey, !apiKey.isEmpty {
-            var items = components.queryItems ?? []
-            items.append(URLQueryItem(name: "apikey", value: apiKey))
-            components.queryItems = items
-        }
-        return components.url
     }
 }

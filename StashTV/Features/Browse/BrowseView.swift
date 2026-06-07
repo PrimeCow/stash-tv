@@ -37,6 +37,9 @@ struct BrowseView: View {
                     .padding(60)
             }
             .navigationTitle("Recent Scenes")
+            .navigationDestination(for: Scene.self) { scene in
+                ScenePlayerView(scene: scene)
+            }
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("Sign Out", role: .destructive) {
