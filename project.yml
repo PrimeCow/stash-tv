@@ -24,7 +24,7 @@ targets:
     info:
       path: StashTV/Info.plist
       properties:
-        CFBundleDisplayName: StashTV
+        CFBundleDisplayName: stash-tv
         UILaunchScreen: {}
         UIRequiredDeviceCapabilities:
           - arm64
@@ -38,7 +38,7 @@ targets:
         ASSETCATALOG_COMPILER_APPICON_NAME: "App Icon & Top Shelf Image"
         SWIFT_EMIT_LOC_STRINGS: YES
         GENERATE_INFOPLIST_FILE: NO
-        INFOPLIST_KEY_CFBundleDisplayName: StashTV
+        INFOPLIST_KEY_CFBundleDisplayName: stash-tv
     scheme:
       environmentVariables:
         - variable: STASH_SERVER_URL
