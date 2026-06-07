@@ -103,8 +103,8 @@ struct BrowseView: View {
                 .padding(60)
             }
             .navigationTitle("StashTV")
-            .navigationDestination(for: Scene.self) { scene in
-                ScenePlayerView(scene: scene)
+            .navigationDestination(for: ScenePlaylist.self) { playlist in
+                ScenePlayerView(playlist: playlist)
             }
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {

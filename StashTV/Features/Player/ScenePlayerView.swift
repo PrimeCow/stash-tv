@@ -2,16 +2,16 @@ import SwiftUI
 import AVKit
 
 struct ScenePlayerView: View {
-    let scene: Scene
+    let playlist: ScenePlaylist
 
     @Environment(ServerConfig.self) private var config
     @Environment(\.dismiss) private var dismiss
 
-    @State private var player: AVPlayer?
+    @State private var player: AVQueuePlayer?
     @State private var loadError: String?
 
     var body: some View {
-        Group {
+        SwiftUI.Group {
             if let player {
                 VideoPlayer(player: player)
                     .ignoresSafeArea()
@@ -24,22 +24,33 @@ struct ScenePlayerView: View {
             }
         }
         .onAppear(perform: prepare)
-        .onDisappear {
-            player?.pause()
-            player = nil
-        }
+        .onDisappear(perform: teardown)
     }
 
     private func prepare() {
         guard player == nil else { return }
-        guard let url = StashURL.authenticated(scene.paths.stream, apiKey: config.apiKey) else {
-            loadError = "This scene has no stream URL."
+        let items = playlist.scenes
+            .dropFirst(playlist.startIndex)
+            .compactMap { scene -> AVPlayerItem? in
+                guard let url = StashURL.authenticated(scene.paths.stream, apiKey: config.apiKey) else {
+                    return nil
+                }
+                return AVPlayerItem(url: url)
+            }
+        guard !items.isEmpty else {
+            loadError = "No playable streams in this list."
             return
         }
-        let avPlayer = AVPlayer(url: url)
-        avPlayer.automaticallyWaitsToMinimizeStalling = true
-        player = avPlayer
-        avPlayer.play()
+        let queuePlayer = AVQueuePlayer(items: Array(items))
+        queuePlayer.automaticallyWaitsToMinimizeStalling = true
+        player = queuePlayer
+        queuePlayer.play()
+    }
+
+    private func teardown() {
+        player?.pause()
+        player?.removeAllItems()
+        player = nil
     }
 
     private func errorView(_ message: String) -> some View {

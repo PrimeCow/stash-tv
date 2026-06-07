@@ -5,7 +5,12 @@ struct RootView: View {
 
     var body: some View {
         if config.isConfigured {
-            BrowseView()
+            TabView {
+                BrowseView()
+                    .tabItem { Label("Scenes", systemImage: "play.rectangle.fill") }
+                GroupsBrowseView()
+                    .tabItem { Label("Groups", systemImage: "rectangle.stack.fill") }
+            }
         } else {
             ServerSetupView()
         }
