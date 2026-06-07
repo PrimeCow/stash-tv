@@ -20,6 +20,7 @@ final class BrowseViewModel {
     private var currentPage = 0
     private var activeFilter: SavedFilter?
     private var loadToken = 0
+    private var randomSeed: Int = .random(in: 1...Int.max)
 
     init(perPage: Int = 40, prefetchMargin: Int = 8) {
         self.perPage = perPage
@@ -32,6 +33,7 @@ final class BrowseViewModel {
         loadToken &+= 1
         let token = loadToken
         activeFilter = filter
+        randomSeed = .random(in: 1...Int.max)
         currentPage = 0
         scenes = []
         totalCount = 0
@@ -51,6 +53,14 @@ final class BrowseViewModel {
         await loadPage(currentPage + 1, using: config, token: token, isInitial: false)
     }
 
+    private func resolvedSort() -> String {
+        let baseSort = activeFilter?.find_filter?.sort ?? "date"
+        if baseSort.hasPrefix("random") {
+            return "random_\(randomSeed)"
+        }
+        return baseSort
+    }
+
     private func loadPage(_ page: Int, using config: ServerConfig, token: Int, isInitial: Bool) async {
         if !isInitial { isLoadingMore = true }
         defer { if !isInitial { isLoadingMore = false } }
@@ -59,7 +69,7 @@ final class BrowseViewModel {
             let query = FindScenesQuery(
                 page: page,
                 perPage: perPage,
-                sort: activeFilter?.find_filter?.sort ?? "date",
+                sort: resolvedSort(),
                 direction: activeFilter?.find_filter?.direction ?? "DESC",
                 sceneFilter: activeFilter?.object_filter?.normalizedForCriterionInput()
             )
@@ -111,8 +121,18 @@ struct BrowseView: View {
                     Button {
                         showManageSheet = true
                     } label: {
-                        Label("Filters", systemImage: "slider.horizontal.3")
+                        Image(systemName: "slider.horizontal.3")
                     }
+                    .accessibilityLabel("Filters")
+                }
+                ToolbarItem(placement: .topBarLeading) {
+                    Button {
+                        Task { await viewModel.refresh(using: config) }
+                    } label: {
+                        Image(systemName: "arrow.clockwise")
+                    }
+                    .accessibilityLabel("Refresh")
+                    .disabled(isLoading)
                 }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("Sign Out", role: .destructive) {
@@ -235,6 +255,11 @@ struct BrowseView: View {
               id != FilterPreferences.recentScenesID
         else { return nil }
         return catalog.savedFilters.first { $0.id == id }
+    }
+
+    private var isLoading: Bool {
+        if case .loadingInitial = viewModel.status { return true }
+        return false
     }
 
     private func ensureValidActiveSelection() {
