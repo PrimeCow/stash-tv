@@ -6,18 +6,28 @@ struct FindScenesQuery: GraphQLOperation {
     let page: Int
     let perPage: Int
     let sort: String
+    let direction: String
+    let sceneFilter: JSONValue?
 
-    init(page: Int = 1, perPage: Int = 40, sort: String = "date") {
+    init(
+        page: Int = 1,
+        perPage: Int = 40,
+        sort: String = "date",
+        direction: String = "DESC",
+        sceneFilter: JSONValue? = nil
+    ) {
         self.page = page
         self.perPage = perPage
         self.sort = sort
+        self.direction = direction
+        self.sceneFilter = sceneFilter
     }
 
     let operationName = "FindScenes"
 
     let query = """
-    query FindScenes($filter: FindFilterType) {
-      findScenes(filter: $filter) {
+    query FindScenes($filter: FindFilterType, $scene_filter: SceneFilterType) {
+      findScenes(filter: $filter, scene_filter: $scene_filter) {
         count
         scenes {
           id
@@ -36,14 +46,18 @@ struct FindScenesQuery: GraphQLOperation {
     """
 
     var variables: [String: AnyEncodable]? {
-        [
+        var values: [String: AnyEncodable] = [
             "filter": AnyEncodable([
                 "page": AnyEncodable(page),
                 "per_page": AnyEncodable(perPage),
                 "sort": AnyEncodable(sort),
-                "direction": AnyEncodable("DESC"),
+                "direction": AnyEncodable(direction),
             ])
         ]
+        if let sceneFilter {
+            values["scene_filter"] = AnyEncodable(sceneFilter)
+        }
+        return values
     }
 
     struct Data: Decodable {
