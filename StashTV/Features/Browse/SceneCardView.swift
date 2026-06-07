@@ -38,17 +38,21 @@ struct SceneCardLabel: View {
             .aspectRatio(16/9, contentMode: .fit)
             .clipShape(RoundedRectangle(cornerRadius: 12))
 
-            VStack(alignment: .leading, spacing: 4) {
+            VStack(alignment: .leading, spacing: 6) {
                 Text(scene.displayTitle)
-                    .font(.headline)
+                    .font(.subheadline)
                     .lineLimit(1)
-                if let studio = scene.studio?.name {
-                    Text(studio)
-                        .font(.subheadline)
+                    .truncationMode(.tail)
+                if !scene.tags.isEmpty {
+                    Text(scene.tags.map(\.name).joined(separator: ", "))
+                        .font(.footnote)
                         .foregroundStyle(.secondary)
-                        .lineLimit(1)
+                        .lineLimit(3)
+                        .multilineTextAlignment(.leading)
                 }
             }
+            .padding(.horizontal, 12)
+            .padding(.bottom, 12)
         }
     }
 }
