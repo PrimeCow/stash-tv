@@ -33,6 +33,7 @@ struct ScenePlayerView: View {
                 .ignoresSafeArea()
             }
         }
+        .toolbar(.hidden, for: .tabBar)
     }
 
     private var hasPlayableItem: Bool {
