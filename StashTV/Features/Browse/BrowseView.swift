@@ -61,7 +61,7 @@ final class BrowseViewModel {
                 perPage: perPage,
                 sort: activeFilter?.find_filter?.sort ?? "date",
                 direction: activeFilter?.find_filter?.direction ?? "DESC",
-                sceneFilter: activeFilter?.object_filter
+                sceneFilter: activeFilter?.object_filter?.normalizedForCriterionInput()
             )
             let result = try await client.execute(query)
             guard token == loadToken else { return }

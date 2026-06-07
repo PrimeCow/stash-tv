@@ -36,6 +36,13 @@ actor StashClient {
             throw StashError.decoding(error, bodyPreview: nil)
         }
 
+        #if DEBUG
+        if let httpBody = request.httpBody, let text = String(data: httpBody, encoding: .utf8) {
+            print("[StashClient] POST \(endpoint.absoluteString)")
+            print("[StashClient] request: \(text)")
+        }
+        #endif
+
         let data: Data
         let response: URLResponse
         do {
