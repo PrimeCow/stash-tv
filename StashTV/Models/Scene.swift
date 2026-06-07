@@ -12,8 +12,16 @@ struct Scene: Identifiable, Decodable, Hashable {
     let performers: [Performer]
     let tags: [Tag]
 
-    var displayTitle: String { title?.nilIfEmpty ?? "Untitled" }
+    var displayTitle: String {
+        title?.nilIfEmpty
+            ?? primaryFile?.basename?.nilIfEmpty.map(Self.stripExtension)
+            ?? "Untitled"
+    }
     var primaryFile: SceneFile? { files.first }
+
+    private static func stripExtension(_ name: String) -> String {
+        (name as NSString).deletingPathExtension
+    }
 }
 
 struct ScenePaths: Decodable, Hashable {
@@ -23,6 +31,7 @@ struct ScenePaths: Decodable, Hashable {
 }
 
 struct SceneFile: Decodable, Hashable {
+    let basename: String?
     let duration: Double?
     let width: Int?
     let height: Int?

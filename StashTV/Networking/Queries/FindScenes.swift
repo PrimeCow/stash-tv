@@ -26,7 +26,7 @@ struct FindScenesQuery: GraphQLOperation {
           date
           rating100
           paths { screenshot preview stream }
-          files { duration width height }
+          files { basename duration width height }
           studio { id name image_path }
           performers { id name image_path }
           tags { id name }
