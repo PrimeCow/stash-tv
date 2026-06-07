@@ -145,9 +145,10 @@ struct PerformerDetailView: View {
                 Spacer(minLength: 0)
                 if let scenes = currentScenes, !scenes.isEmpty {
                     NavigationLink(value: ScenePlaylist(
-                        scenes: scenes,
+                        entries: scenes.map { PlaylistEntry(scene: $0, startTime: nil) },
                         startIndex: 0,
-                        title: performer.name
+                        title: performer.name,
+                        continuation: .performer(id: performer.id)
                     )) {
                         Label("Play All", systemImage: "play.fill")
                             .font(.title3)
@@ -198,11 +199,21 @@ struct PerformerDetailView: View {
                 }
             }
             LazyVGrid(columns: columns, spacing: 60) {
-                ForEach(viewModel.scenes) { scene in
-                    SceneCardView(scene: scene, apiKey: config.apiKey)
-                        .task(id: scene.id) {
-                            await viewModel.prefetchIfNeeded(currentItem: scene, using: config)
-                        }
+                let entries = viewModel.scenes.map { PlaylistEntry(scene: $0, startTime: nil) }
+                ForEach(Array(viewModel.scenes.enumerated()), id: \.element.id) { index, scene in
+                    SceneCardView(
+                        scene: scene,
+                        apiKey: config.apiKey,
+                        playlist: ScenePlaylist(
+                            entries: entries,
+                            startIndex: index,
+                            title: performer.name,
+                            continuation: .performer(id: performer.id)
+                        )
+                    )
+                    .task(id: scene.id) {
+                        await viewModel.prefetchIfNeeded(currentItem: scene, using: config)
+                    }
                 }
             }
             if viewModel.hasMore {

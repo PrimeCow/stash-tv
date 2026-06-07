@@ -81,9 +81,10 @@ struct GroupDetailView: View {
                 Spacer(minLength: 0)
                 if let scenes = currentScenes, !scenes.isEmpty {
                     NavigationLink(value: ScenePlaylist(
-                        scenes: scenes,
+                        entries: scenes.map { PlaylistEntry(scene: $0, startTime: nil) },
                         startIndex: 0,
-                        title: group.displayTitle
+                        title: group.displayTitle,
+                        continuation: .oneOff
                     )) {
                         Label("Play All", systemImage: "play.fill")
                             .font(.title3)
@@ -121,11 +122,13 @@ struct GroupDetailView: View {
                     .foregroundStyle(.secondary)
             } else {
                 LazyVGrid(columns: columns, spacing: 60) {
+                    let entries = scenes.map { PlaylistEntry(scene: $0, startTime: nil) }
                     ForEach(Array(scenes.enumerated()), id: \.element.id) { index, scene in
                         NavigationLink(value: ScenePlaylist(
-                            scenes: scenes,
+                            entries: entries,
                             startIndex: index,
-                            title: group.displayTitle
+                            title: group.displayTitle,
+                            continuation: .oneOff
                         )) {
                             SceneCardLabel(scene: scene, apiKey: config.apiKey)
                         }

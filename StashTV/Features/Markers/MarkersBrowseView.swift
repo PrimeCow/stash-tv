@@ -61,6 +61,15 @@ final class MarkersBrowseViewModel {
         return baseSort
     }
 
+    func feedDescriptor() -> MarkerFeedDescriptor {
+        MarkerFeedDescriptor(
+            sort: resolvedSort(),
+            direction: activeFilter?.find_filter?.direction ?? "DESC",
+            sceneMarkerFilter: activeFilter?.object_filter?.normalizedForCriterionInput(),
+            perPage: perPage
+        )
+    }
+
     private func loadPage(_ page: Int, using config: ServerConfig, token: Int, isInitial: Bool) async {
         if !isInitial { isLoadingMore = true }
         defer { if !isInitial { isLoadingMore = false } }
@@ -209,11 +218,23 @@ struct MarkersBrowseView: View {
                 }
             }
             LazyVGrid(columns: columns, spacing: 60) {
-                ForEach(viewModel.markers) { marker in
-                    MarkerCardView(marker: marker, apiKey: config.apiKey)
-                        .task(id: marker.id) {
-                            await viewModel.prefetchIfNeeded(currentItem: marker, using: config)
-                        }
+                let entries = viewModel.markers.map {
+                    PlaylistEntry(scene: $0.scene, startTime: $0.seconds)
+                }
+                let descriptor = viewModel.feedDescriptor()
+                ForEach(Array(viewModel.markers.enumerated()), id: \.element.id) { index, marker in
+                    MarkerCardView(
+                        marker: marker,
+                        apiKey: config.apiKey,
+                        playlist: ScenePlaylist(
+                            entries: entries,
+                            startIndex: index,
+                            continuation: .markers(descriptor)
+                        )
+                    )
+                    .task(id: marker.id) {
+                        await viewModel.prefetchIfNeeded(currentItem: marker, using: config)
+                    }
                 }
             }
             if viewModel.hasMore {

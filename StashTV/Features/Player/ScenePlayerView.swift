@@ -9,12 +9,17 @@ struct ScenePlayerView: View {
     @Environment(SceneStatsStore.self) private var stats
     @Environment(\.dismiss) private var dismiss
 
-    @State private var currentSceneIndex: Int
+    @State private var queue: PlaybackQueue
     @State private var isIncrementing = false
 
     init(playlist: ScenePlaylist) {
         self.playlist = playlist
-        self._currentSceneIndex = State(initialValue: playlist.startIndex)
+        self._queue = State(
+            initialValue: PlaybackQueue(
+                entries: playlist.entries,
+                currentEntryIndex: playlist.startIndex
+            )
+        )
     }
 
     var body: some View {
@@ -23,9 +28,10 @@ struct ScenePlayerView: View {
                 errorView("No playable streams in this list.")
             } else {
                 TVPlayerRepresentable(
-                    playlist: playlist,
+                    queue: queue,
+                    continuation: playlist.continuation,
                     apiKey: config.apiKey,
-                    currentSceneIndex: $currentSceneIndex,
+                    serverConfig: config,
                     currentOCount: currentOCount,
                     isIncrementing: isIncrementing,
                     onIncrement: increment(sceneID:)
@@ -37,16 +43,15 @@ struct ScenePlayerView: View {
     }
 
     private var hasPlayableItem: Bool {
-        playlist.scenes
+        playlist.entries
             .dropFirst(playlist.startIndex)
-            .contains { scene in
-                StashURL.authenticated(scene.paths.stream, apiKey: config.apiKey) != nil
+            .contains { entry in
+                StashURL.authenticated(entry.scene.paths.stream, apiKey: config.apiKey) != nil
             }
     }
 
     private var currentOCount: Int {
-        guard currentSceneIndex >= 0, currentSceneIndex < playlist.scenes.count else { return 0 }
-        let scene = playlist.scenes[currentSceneIndex]
+        guard let scene = queue.currentScene else { return 0 }
         return stats.oCounter(for: scene.id, fallback: scene.o_counter) ?? 0
     }
 
@@ -78,65 +83,67 @@ struct ScenePlayerView: View {
 // MARK: - UIKit player wrapper
 
 struct TVPlayerRepresentable: UIViewControllerRepresentable {
-    let playlist: ScenePlaylist
+    let queue: PlaybackQueue
+    let continuation: PlaybackContext
     let apiKey: String?
-    @Binding var currentSceneIndex: Int
+    let serverConfig: ServerConfig
     let currentOCount: Int
     let isIncrementing: Bool
     let onIncrement: (String) async -> Void
 
+    private static let topUpThreshold = 3
+
     func makeUIViewController(context: Context) -> AVPlayerViewController {
         let vc = AVPlayerViewController()
+        let coord = context.coordinator
+        coord.parent = self
+        coord.queue = queue
+        coord.continuation = continuation
+        coord.apiKey = apiKey
+        coord.serverConfig = serverConfig
 
-        let items = playlist.scenes
-            .dropFirst(playlist.startIndex)
-            .compactMap { scene -> AVPlayerItem? in
-                guard let url = StashURL.authenticated(scene.paths.stream, apiKey: apiKey) else {
-                    return nil
-                }
-                return AVPlayerItem(url: url)
+        let initialEntries = Array(queue.entries.dropFirst(queue.currentEntryIndex))
+        let items = initialEntries.compactMap { entry -> AVPlayerItem? in
+            guard let url = StashURL.authenticated(entry.scene.paths.stream, apiKey: apiKey) else {
+                return nil
             }
+            return AVPlayerItem(url: url)
+        }
         let queuePlayer = AVQueuePlayer(items: Array(items))
         queuePlayer.automaticallyWaitsToMinimizeStalling = true
-        if let startTime = playlist.startTime, startTime > 0 {
+        coord.player = queuePlayer
+        coord.items = items
+        coord.entryOffset = queue.currentEntryIndex
+
+        if queue.entries.indices.contains(queue.currentEntryIndex),
+           let startTime = queue.entries[queue.currentEntryIndex].startTime,
+           startTime > 0 {
             queuePlayer.seek(
                 to: CMTime(seconds: startTime, preferredTimescale: 600),
                 toleranceBefore: .zero,
                 toleranceAfter: .positiveInfinity
             )
         }
+
         vc.player = queuePlayer
-        context.coordinator.player = queuePlayer
 
         let infoVC = UIHostingController(rootView: makeInfoView())
         infoVC.title = "O Counter"
         vc.customInfoViewControllers = [infoVC]
-        context.coordinator.infoController = infoVC
+        coord.infoController = infoVC
 
-        let observer = NotificationCenter.default.addObserver(
-            forName: AVPlayerItem.didPlayToEndTimeNotification,
-            object: nil,
-            queue: .main
-        ) { _ in
-            let next = currentSceneIndex + 1
-            if next < playlist.scenes.count {
-                currentSceneIndex = next
-            }
-        }
-        context.coordinator.endObserver = observer
-
+        coord.startObservers()
         queuePlayer.play()
         return vc
     }
 
     func updateUIViewController(_ vc: AVPlayerViewController, context: Context) {
+        context.coordinator.parent = self
         context.coordinator.infoController?.rootView = makeInfoView()
     }
 
     static func dismantleUIViewController(_ vc: AVPlayerViewController, coordinator: Coordinator) {
-        if let observer = coordinator.endObserver {
-            NotificationCenter.default.removeObserver(observer)
-        }
+        coordinator.stopObservers()
         coordinator.player?.pause()
         coordinator.player?.removeAllItems()
     }
@@ -144,14 +151,91 @@ struct TVPlayerRepresentable: UIViewControllerRepresentable {
     func makeCoordinator() -> Coordinator { Coordinator() }
 
     @MainActor
-    final class Coordinator {
-        var endObserver: Any?
+    final class Coordinator: NSObject {
+        var parent: TVPlayerRepresentable?
         var player: AVQueuePlayer?
+        var queue: PlaybackQueue?
+        var continuation: PlaybackContext = .oneOff
+        var apiKey: String?
+        var serverConfig: ServerConfig?
+        var items: [AVPlayerItem] = []
+        var entryOffset: Int = 0
         var infoController: UIHostingController<OCountInfoView>?
+        var endObserver: Any?
+        var currentItemObservation: NSKeyValueObservation?
+        var fetchInProgress: Bool = false
+
+        func startObservers() {
+            endObserver = NotificationCenter.default.addObserver(
+                forName: AVPlayerItem.didPlayToEndTimeNotification,
+                object: nil,
+                queue: .main
+            ) { [weak self] _ in
+                Task { @MainActor in
+                    await self?.maybeFetchMore()
+                }
+            }
+            currentItemObservation = player?.observe(\.currentItem, options: [.new]) { [weak self] _, _ in
+                Task { @MainActor in
+                    self?.handleCurrentItemChanged()
+                }
+            }
+        }
+
+        func stopObservers() {
+            if let observer = endObserver {
+                NotificationCenter.default.removeObserver(observer)
+            }
+            endObserver = nil
+            currentItemObservation?.invalidate()
+            currentItemObservation = nil
+        }
+
+        func handleCurrentItemChanged() {
+            guard let player, let currentItem = player.currentItem, let queue else { return }
+            guard let itemIndex = items.firstIndex(where: { $0 === currentItem }) else { return }
+            let entryIndex = entryOffset + itemIndex
+            guard queue.entries.indices.contains(entryIndex) else { return }
+            queue.currentEntryIndex = entryIndex
+
+            let entry = queue.entries[entryIndex]
+            if let startTime = entry.startTime, startTime > 0 {
+                player.seek(
+                    to: CMTime(seconds: startTime, preferredTimescale: 600),
+                    toleranceBefore: .zero,
+                    toleranceAfter: .positiveInfinity
+                )
+            }
+        }
+
+        func maybeFetchMore() async {
+            guard !fetchInProgress, let serverConfig, let queue, let player else { return }
+            let remaining = player.items().count
+            guard remaining < TVPlayerRepresentable.topUpThreshold else { return }
+            guard case .oneOff = continuation else {
+                // continuable path
+                fetchInProgress = true
+                defer { fetchInProgress = false }
+                let continuator = PlaybackContinuator(config: serverConfig)
+                let more = await continuator.fetchMore(
+                    context: continuation,
+                    alreadyLoaded: queue.entries.count
+                )
+                guard !more.isEmpty else { return }
+                for entry in more {
+                    guard let url = StashURL.authenticated(entry.scene.paths.stream, apiKey: apiKey) else { continue }
+                    let item = AVPlayerItem(url: url)
+                    player.insert(item, after: nil)
+                    items.append(item)
+                }
+                queue.append(more)
+                return
+            }
+        }
     }
 
     private func makeInfoView() -> OCountInfoView {
-        let scene = currentScene()
+        let scene = queue.currentScene
         return OCountInfoView(
             sceneID: scene?.id ?? "",
             sceneTitle: scene?.displayTitle ?? "",
@@ -159,11 +243,6 @@ struct TVPlayerRepresentable: UIViewControllerRepresentable {
             isEnabled: scene != nil && !isIncrementing,
             onIncrement: onIncrement
         )
-    }
-
-    private func currentScene() -> Scene? {
-        guard currentSceneIndex >= 0, currentSceneIndex < playlist.scenes.count else { return nil }
-        return playlist.scenes[currentSceneIndex]
     }
 }
 

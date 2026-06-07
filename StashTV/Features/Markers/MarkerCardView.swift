@@ -3,11 +3,18 @@ import SwiftUI
 struct MarkerCardView: View {
     let marker: SceneMarker
     let apiKey: String?
+    let playlist: ScenePlaylist
 
     @Environment(SceneStatsStore.self) private var stats
 
+    init(marker: SceneMarker, apiKey: String?, playlist: ScenePlaylist? = nil) {
+        self.marker = marker
+        self.apiKey = apiKey
+        self.playlist = playlist ?? ScenePlaylist.single(marker.scene, startTime: marker.seconds)
+    }
+
     var body: some View {
-        NavigationLink(value: ScenePlaylist.single(marker.scene, startTime: marker.seconds)) {
+        NavigationLink(value: playlist) {
             VStack(alignment: .leading, spacing: 12) {
                 ZStack(alignment: .topLeading) {
                     ZStack(alignment: .bottomTrailing) {

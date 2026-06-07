@@ -61,6 +61,15 @@ final class BrowseViewModel {
         return baseSort
     }
 
+    func feedDescriptor() -> SceneFeedDescriptor {
+        SceneFeedDescriptor(
+            sort: resolvedSort(),
+            direction: activeFilter?.find_filter?.direction ?? "DESC",
+            sceneFilter: activeFilter?.object_filter?.normalizedForCriterionInput(),
+            perPage: perPage
+        )
+    }
+
     private func loadPage(_ page: Int, using config: ServerConfig, token: Int, isInitial: Bool) async {
         if !isInitial { isLoadingMore = true }
         defer { if !isInitial { isLoadingMore = false } }
@@ -185,11 +194,21 @@ struct BrowseView: View {
                 }
             }
             LazyVGrid(columns: columns, spacing: 60) {
-                ForEach(viewModel.scenes) { scene in
-                    SceneCardView(scene: scene, apiKey: config.apiKey)
-                        .task(id: scene.id) {
-                            await viewModel.prefetchIfNeeded(currentItem: scene, using: config)
-                        }
+                let entries = viewModel.scenes.map { PlaylistEntry(scene: $0, startTime: nil) }
+                let descriptor = viewModel.feedDescriptor()
+                ForEach(Array(viewModel.scenes.enumerated()), id: \.element.id) { index, scene in
+                    SceneCardView(
+                        scene: scene,
+                        apiKey: config.apiKey,
+                        playlist: ScenePlaylist(
+                            entries: entries,
+                            startIndex: index,
+                            continuation: .scenes(descriptor)
+                        )
+                    )
+                    .task(id: scene.id) {
+                        await viewModel.prefetchIfNeeded(currentItem: scene, using: config)
+                    }
                 }
             }
             if viewModel.hasMore {

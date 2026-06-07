@@ -3,9 +3,16 @@ import SwiftUI
 struct SceneCardView: View {
     let scene: Scene
     let apiKey: String?
+    let playlist: ScenePlaylist
+
+    init(scene: Scene, apiKey: String?, playlist: ScenePlaylist? = nil) {
+        self.scene = scene
+        self.apiKey = apiKey
+        self.playlist = playlist ?? ScenePlaylist.single(scene)
+    }
 
     var body: some View {
-        NavigationLink(value: ScenePlaylist.single(scene)) {
+        NavigationLink(value: playlist) {
             SceneCardLabel(scene: scene, apiKey: apiKey)
         }
         .buttonStyle(.card)
