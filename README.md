@@ -9,7 +9,15 @@ Built in SwiftUI for tvOS 17+. No third-party dependencies — a hand-rolled URL
 - **Scenes** — paginated grid with your Stash saved filters as a chip strip, plus a "Recent Scenes" view.
 - **Markers** — timestamped moments within scenes; tap one to start playback at that point. Saved-filter management uses Stash's `SCENE_MARKERS` mode separately from scene filters.
 - **Performers** — portrait grid; opening a performer paginates their scenes and offers a "Play All" queue.
-- **Groups** — collections of scenes; selecting a group plays through every scene in order via `AVQueuePlayer` auto-advance.
+- **Groups** — collections of scenes; selecting a group plays through every scene in order.
+- **Continuous playback** — when a video ends, the next one in the *originating feed* starts automatically:
+  - From the Scenes tab → the next scene under the current filter.
+  - From the Markers tab → the next marker, seeking to its timecode.
+  - From a performer → that performer's next scene.
+  - From a group → the next scene in the group.
+
+  The player keeps the `AVQueuePlayer` topped up by paging the same feed in the background, so playback continues past the initially loaded page.
+- **O-counter** — Stash's o-counter is shown as a badge on scene and marker cards (when greater than zero), and can be incremented during playback from the **O Counter** panel in the tvOS info view (swipe down on the remote while playing).
 - **Random sort re-roll** — refresh re-seeds the `random_<n>` sort on each press, so refreshing a random-sort filter actually shuffles (Stash deterministically uses the seed for stable pagination, so the client has to roll a new one).
 - **App PIN** — 4-digit lock required on every cold launch and on every return from background. Custom focus-engine numeric pad with no `TextField`/`SecureField`, so credential autofill never appears.
 - **HLS playback** with API-key auth folded into the stream URL.
