@@ -26,5 +26,8 @@ struct FilterChipBarView: View {
                 }
             }
         }
+        // Its own focus section so the engine can navigate into the chips even
+        // when the content below is an error state with little else focusable.
+        .focusSection()
     }
 }

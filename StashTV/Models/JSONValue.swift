@@ -66,13 +66,14 @@ extension JSONValue {
         var liftedDepth: JSONValue?
 
         for (key, raw) in dict {
-            let recursed = raw.normalizedForCriterionInput()
-            if key == "value" || key == "excludes" {
-                let (normalized, depth) = unwrapCriterionValue(recursed)
-                out[key] = normalized
-                if key == "value", let depth { liftedDepth = depth }
-            } else {
-                out[key] = recursed
+            switch key {
+            case "value", "excludes", "excluded":
+                let (normalized, depth) = unwrapCriterionValue(raw)
+                // Newer Stash nests an "excluded" list; SceneFilterType wants "excludes".
+                out[key == "excluded" ? "excludes" : key] = normalized
+                if let depth { liftedDepth = depth }
+            default:
+                out[key] = raw.normalizedForCriterionInput()
             }
         }
 
@@ -82,28 +83,55 @@ extension JSONValue {
         return .object(out)
     }
 
+    /// Collapses a criterion `value`/`excludes` payload to an array of scalar IDs,
+    /// lifting any `depth` out for the criterion level. Handles every shape Stash
+    /// has shipped: a bare scalar/array of scalars, `[{id, label}, …]`,
+    /// `{items: [{id, label}, …], depth}`, a single `{id, …}`, and an `id` that is
+    /// itself wrapped in another object.
     private static func unwrapCriterionValue(_ value: JSONValue) -> (JSONValue, depth: JSONValue?) {
-        if case .object(let parts) = value,
-           case .array(let items) = parts["items"] ?? .null {
-            guard let ids = extractIDs(from: items) else { return (value, nil) }
-            return (.array(ids), parts["depth"])
+        switch value {
+        case .object(let parts):
+            if case .array(let items) = parts["items"] ?? .null {
+                return (.array(collectIDs(from: items)), parts["depth"])
+            }
+            if parts["id"] != nil {
+                return (.array(collectIDs(from: [value])), nil)
+            }
+            // Some scalar criteria carry an object value (e.g. ranges) — leave intact.
+            return (value, nil)
+        case .array(let items):
+            return (.array(collectIDs(from: items)), nil)
+        default:
+            return (value, nil)
         }
-        if case .array(let items) = value,
-           let ids = extractIDs(from: items) {
-            return (.array(ids), nil)
-        }
-        return (value, nil)
     }
 
-    private static func extractIDs(from items: [JSONValue]) -> [JSONValue]? {
-        guard !items.isEmpty else { return nil }
+    private static func collectIDs(from items: [JSONValue]) -> [JSONValue] {
         var ids: [JSONValue] = []
         for item in items {
-            guard case .object(let dict) = item, let id = dict["id"] else {
-                return nil
+            switch item {
+            case .string, .int:
+                ids.append(item)
+            case .object(let dict):
+                if let id = dict["id"] {
+                    ids.append(scalarID(id))
+                } else if case .array(let nested) = dict["items"] ?? .null {
+                    ids.append(contentsOf: collectIDs(from: nested))
+                }
+                // Objects with neither id nor nested items are dropped, not passed
+                // through — the server rejects a map where an ID is expected.
+            default:
+                break
             }
-            ids.append(id)
         }
         return ids
+    }
+
+    /// An `id` is occasionally another `{id, label}` object; drill to the scalar.
+    private static func scalarID(_ value: JSONValue) -> JSONValue {
+        if case .object(let dict) = value, let inner = dict["id"] {
+            return scalarID(inner)
+        }
+        return value
     }
 }

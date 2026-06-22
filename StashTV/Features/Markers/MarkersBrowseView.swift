@@ -180,6 +180,7 @@ struct MarkersBrowseView: View {
                 }
             }
             .frame(maxWidth: .infinity, minHeight: 600)
+            .focusSection()
         case .loaded:
             if chips.isEmpty {
                 emptyFiltersPrompt
