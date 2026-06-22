@@ -16,7 +16,7 @@ actor StashClient {
     }
 
     func execute<Op: GraphQLOperation>(_ operation: Op) async throws -> Op.Response {
-        let endpoint = serverURL.appending(path: "graphql")
+        let endpoint = graphQLEndpoint()
         var request = URLRequest(url: endpoint)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
@@ -72,6 +72,21 @@ actor StashClient {
             throw StashError.graphQL([])
         }
         return payload
+    }
+
+    /// `/graphql`, with the API key also folded into the query string. Stash
+    /// authenticates from either the `ApiKey` header or the `apikey` query param;
+    /// the query param additionally lets a reverse proxy (e.g. an Authelia rule
+    /// that bypasses on `apikey` being present) skip its login wall for API calls.
+    private func graphQLEndpoint() -> URL {
+        let base = serverURL.appending(path: "graphql")
+        guard let apiKey, !apiKey.isEmpty,
+              var components = URLComponents(url: base, resolvingAgainstBaseURL: false)
+        else { return base }
+        var items = components.queryItems ?? []
+        items.append(URLQueryItem(name: "apikey", value: apiKey))
+        components.queryItems = items
+        return components.url ?? base
     }
 }
 
