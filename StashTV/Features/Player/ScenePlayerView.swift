@@ -186,7 +186,7 @@ struct TVPlayerRepresentable: UIViewControllerRepresentable {
         infoVC.title = "O Counter"
         coord.infoController = infoVC
 
-        vc.customInfoViewControllers = [performersVC, markersVC, infoVC]
+        vc.customInfoViewControllers = [markersVC, infoVC, performersVC]
 
         coord.startObservers()
         queuePlayer.play()
