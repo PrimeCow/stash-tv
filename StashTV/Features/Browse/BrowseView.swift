@@ -272,11 +272,7 @@ struct BrowseView: View {
             .buttonStyle(.bordered)
             .accessibilityLabel("Refresh")
             .disabled(isLoading)
-            Button("Sign Out") {
-                config.serverURL = nil
-                config.apiKey = nil
-            }
-            .buttonStyle(.bordered)
+            SettingsButton()
         }
         .focusSection()
     }

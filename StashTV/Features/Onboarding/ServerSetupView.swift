@@ -1,20 +1,6 @@
 import SwiftUI
 
 struct ServerSetupView: View {
-    @Environment(ServerConfig.self) private var config
-
-    @State private var serverText = ""
-    @State private var apiKeyText = ""
-    @State private var testState: TestState = .idle
-    @State private var showPairing = false
-
-    private enum TestState: Equatable {
-        case idle
-        case testing
-        case ok(version: String)
-        case failed(message: String)
-    }
-
     var body: some View {
         VStack(spacing: 40) {
             VStack(spacing: 8) {
@@ -24,113 +10,12 @@ struct ServerSetupView: View {
                     .foregroundStyle(.secondary)
             }
 
-            VStack(alignment: .leading, spacing: 24) {
-                LabeledField(label: "Server URL", placeholder: "https://stash.example.com", text: $serverText)
-                LabeledField(label: "API Key (optional)", placeholder: "paste API key", text: $apiKeyText)
-            }
-            .frame(maxWidth: 900)
-
-            Button {
-                showPairing = true
-            } label: {
-                Label("Enter from Phone", systemImage: "iphone.and.arrow.forward")
-            }
-
-            statusView
-
-            HStack(spacing: 24) {
-                Button("Test Connection", action: testConnection)
-                    .disabled(parsedURL == nil || testState == .testing)
-                Button("Save & Continue", action: save)
-                    .disabled(parsedURL == nil)
-                    .buttonStyle(.borderedProminent)
-            }
+            // No onSaved action needed: once the config is set, RootView swaps
+            // this screen for the main TabView automatically.
+            ConnectionForm(submitTitle: "Save & Continue")
         }
         .padding(80)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color.black.ignoresSafeArea())
-        .onAppear {
-            serverText = config.serverURL?.absoluteString ?? ""
-            apiKeyText = config.apiKey ?? ""
-        }
-        .fullScreenCover(isPresented: $showPairing) {
-            PairingView { url, key in
-                serverText = url
-                apiKeyText = key ?? ""
-                testState = .idle
-            }
-        }
-    }
-
-    @ViewBuilder
-    private var statusView: some View {
-        switch testState {
-        case .idle:
-            EmptyView()
-        case .testing:
-            ProgressView("Contacting server…")
-        case .ok(let version):
-            Label("Connected to Stash \(version)", systemImage: "checkmark.circle.fill")
-                .foregroundStyle(.green)
-        case .failed(let message):
-            Label(message, systemImage: "exclamationmark.triangle.fill")
-                .foregroundStyle(.red)
-                .multilineTextAlignment(.center)
-        }
-    }
-
-    private var parsedURL: URL? {
-        let trimmed = serverText.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard let url = URL(string: trimmed), url.scheme != nil, url.host != nil else { return nil }
-        return url
-    }
-
-    private func testConnection() {
-        guard let url = parsedURL else { return }
-        let key = apiKeyText.trimmingCharacters(in: .whitespacesAndNewlines)
-        testState = .testing
-        Task {
-            do {
-                let client = StashClient(serverURL: url, apiKey: key.isEmpty ? nil : key)
-                let result = try await client.execute(VersionQuery())
-                testState = .ok(version: result.version.version)
-            } catch {
-                testState = .failed(message: (error as? LocalizedError)?.errorDescription ?? "\(error)")
-            }
-        }
-    }
-
-    private func save() {
-        guard let url = parsedURL else { return }
-        let key = apiKeyText.trimmingCharacters(in: .whitespacesAndNewlines)
-        config.apiKey = key.isEmpty ? nil : key
-        config.serverURL = url
-    }
-}
-
-private struct LabeledField: View {
-    let label: String
-    let placeholder: String
-    @Binding var text: String
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                Text(label)
-                    .font(.headline)
-                    .foregroundStyle(.secondary)
-                Spacer()
-                if !text.isEmpty {
-                    Button(role: .destructive) {
-                        text = ""
-                    } label: {
-                        Label("Clear", systemImage: "xmark.circle")
-                            .font(.caption)
-                    }
-                }
-            }
-            TextField(placeholder, text: $text)
-                .font(.title3)
-        }
     }
 }

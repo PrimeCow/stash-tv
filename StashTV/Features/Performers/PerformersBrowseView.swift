@@ -88,7 +88,9 @@ struct PerformersBrowseView: View {
                         Text("Performers")
                             .font(.largeTitle).bold()
                         Spacer()
+                        SettingsButton()
                     }
+                    .focusSection()
                     content
                 }
                 .padding(60)

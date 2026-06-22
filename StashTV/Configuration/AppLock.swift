@@ -29,6 +29,16 @@ final class AppLock {
         status = .unlocked
     }
 
+    /// Replaces the stored PIN from within an already-unlocked session
+    /// (the Settings screen). Returns false if the new PIN is malformed.
+    @discardableResult
+    func changePIN(_ pin: String) -> Bool {
+        guard isValidPIN(pin) else { return false }
+        try? keychain.write(pin, account: Self.pinAccount)
+        lastError = nil
+        return true
+    }
+
     func verify(_ pin: String) -> Bool {
         guard let stored = try? keychain.read(account: Self.pinAccount),
               !stored.isEmpty,

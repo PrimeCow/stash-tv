@@ -159,6 +159,7 @@ struct MarkersBrowseView: View {
             .buttonStyle(.bordered)
             .accessibilityLabel("Refresh")
             .disabled(isLoading)
+            SettingsButton()
         }
         .focusSection()
     }

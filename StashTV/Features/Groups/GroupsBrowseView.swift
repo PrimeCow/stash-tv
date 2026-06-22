@@ -88,7 +88,9 @@ struct GroupsBrowseView: View {
                         Text("Groups")
                             .font(.largeTitle).bold()
                         Spacer()
+                        SettingsButton()
                     }
+                    .focusSection()
                     content
                 }
                 .padding(60)
