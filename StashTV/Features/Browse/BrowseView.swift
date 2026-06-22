@@ -134,9 +134,24 @@ struct BrowseView: View {
         }
         .onChange(of: prefs.enabledFilterIDs) { _, _ in ensureValidActiveSelection() }
         .onChange(of: prefs.showRecentScenes) { _, _ in ensureValidActiveSelection() }
+        .onChange(of: connectionKey) { _, _ in
+            Task { await reloadForConnectionChange() }
+        }
         .sheet(isPresented: $showManageSheet) {
             ManageFiltersView(mode: .scenes, catalog: catalog, prefs: prefs)
         }
+    }
+
+    /// Changes whenever the server URL or API key is edited (e.g. in Settings),
+    /// so a connection that initially failed can recover without relaunching.
+    private var connectionKey: String {
+        "\(config.serverURL?.absoluteString ?? "")|\(config.apiKey ?? "")"
+    }
+
+    private func reloadForConnectionChange() async {
+        await catalog.refresh(using: config)
+        ensureValidActiveSelection()
+        await viewModel.setActiveFilter(currentFilter(), using: config)
     }
 
     @ViewBuilder

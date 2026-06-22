@@ -104,6 +104,15 @@ struct PerformersBrowseView: View {
             }
         }
         .task { await viewModel.loadInitial(using: config) }
+        .onChange(of: connectionKey) { _, _ in
+            Task { await viewModel.refresh(using: config) }
+        }
+    }
+
+    /// Lets a connection that initially failed recover after the URL/API key is
+    /// edited in Settings, without relaunching the app.
+    private var connectionKey: String {
+        "\(config.serverURL?.absoluteString ?? "")|\(config.apiKey ?? "")"
     }
 
     @ViewBuilder
