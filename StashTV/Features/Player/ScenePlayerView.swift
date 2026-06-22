@@ -11,6 +11,7 @@ struct ScenePlayerView: View {
 
     @State private var queue: PlaybackQueue
     @State private var isIncrementing = false
+    @State private var chapters: [SceneChapter] = []
 
     init(playlist: ScenePlaylist) {
         self.playlist = playlist
@@ -34,12 +35,30 @@ struct ScenePlayerView: View {
                     serverConfig: config,
                     currentOCount: currentOCount,
                     isIncrementing: isIncrementing,
-                    onIncrement: increment(sceneID:)
+                    onIncrement: increment(sceneID:),
+                    chapters: chapters
                 )
                 .ignoresSafeArea()
             }
         }
         .toolbar(.hidden, for: .tabBar)
+        .task(id: queue.currentScene?.id) { await loadChapters() }
+    }
+
+    private func loadChapters() async {
+        guard let sceneID = queue.currentScene?.id else {
+            chapters = []
+            return
+        }
+        do {
+            let client = try StashClient.make(from: config)
+            let result = try await client.execute(FindSceneChaptersQuery(sceneID: sceneID))
+            guard queue.currentScene?.id == sceneID else { return }
+            chapters = (result.findScene?.scene_markers ?? []).sorted { $0.seconds < $1.seconds }
+        } catch {
+            print("[Markers] failed to load chapters for scene \(sceneID): \(error)")
+            chapters = []
+        }
     }
 
     private var hasPlayableItem: Bool {
@@ -90,6 +109,7 @@ struct TVPlayerRepresentable: UIViewControllerRepresentable {
     let currentOCount: Int
     let isIncrementing: Bool
     let onIncrement: (String) async -> Void
+    let chapters: [SceneChapter]
 
     private static let topUpThreshold = 3
 
@@ -127,10 +147,19 @@ struct TVPlayerRepresentable: UIViewControllerRepresentable {
 
         vc.player = queuePlayer
 
+        let markersVC = UIHostingController(
+            rootView: makeMarkersView(onSelect: { [weak coord] seconds in
+                coord?.seek(to: seconds)
+            })
+        )
+        markersVC.title = "Markers"
+        coord.markersController = markersVC
+
         let infoVC = UIHostingController(rootView: makeInfoView())
         infoVC.title = "O Counter"
-        vc.customInfoViewControllers = [infoVC]
         coord.infoController = infoVC
+
+        vc.customInfoViewControllers = [markersVC, infoVC]
 
         coord.startObservers()
         queuePlayer.play()
@@ -138,8 +167,12 @@ struct TVPlayerRepresentable: UIViewControllerRepresentable {
     }
 
     func updateUIViewController(_ vc: AVPlayerViewController, context: Context) {
-        context.coordinator.parent = self
-        context.coordinator.infoController?.rootView = makeInfoView()
+        let coord = context.coordinator
+        coord.parent = self
+        coord.infoController?.rootView = makeInfoView()
+        coord.markersController?.rootView = makeMarkersView(onSelect: { [weak coord] seconds in
+            coord?.seek(to: seconds)
+        })
     }
 
     static func dismantleUIViewController(_ vc: AVPlayerViewController, coordinator: Coordinator) {
@@ -161,6 +194,7 @@ struct TVPlayerRepresentable: UIViewControllerRepresentable {
         var items: [AVPlayerItem] = []
         var entryOffset: Int = 0
         var infoController: UIHostingController<OCountInfoView>?
+        var markersController: UIHostingController<MarkersInfoView>?
         var endObserver: Any?
         var currentItemObservation: NSKeyValueObservation?
         var fetchInProgress: Bool = false
@@ -189,6 +223,14 @@ struct TVPlayerRepresentable: UIViewControllerRepresentable {
             endObserver = nil
             currentItemObservation?.invalidate()
             currentItemObservation = nil
+        }
+
+        func seek(to seconds: Double) {
+            player?.seek(
+                to: CMTime(seconds: seconds, preferredTimescale: 600),
+                toleranceBefore: .zero,
+                toleranceAfter: .positiveInfinity
+            )
         }
 
         func handleCurrentItemChanged() {
@@ -234,6 +276,14 @@ struct TVPlayerRepresentable: UIViewControllerRepresentable {
         }
     }
 
+    private func makeMarkersView(onSelect: @escaping (Double) -> Void) -> MarkersInfoView {
+        MarkersInfoView(
+            chapters: chapters,
+            sceneTitle: queue.currentScene?.displayTitle ?? "",
+            onSelect: onSelect
+        )
+    }
+
     private func makeInfoView() -> OCountInfoView {
         let scene = queue.currentScene
         return OCountInfoView(
@@ -243,6 +293,74 @@ struct TVPlayerRepresentable: UIViewControllerRepresentable {
             isEnabled: scene != nil && !isIncrementing,
             onIncrement: onIncrement
         )
+    }
+}
+
+// MARK: - Markers panel UI
+
+struct MarkersInfoView: View {
+    let chapters: [SceneChapter]
+    let sceneTitle: String
+    let onSelect: (Double) -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 24) {
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Markers")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .tracking(2)
+                if !sceneTitle.isEmpty {
+                    Text(sceneTitle)
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
+            }
+
+            if chapters.isEmpty {
+                Text("This scene has no markers.")
+                    .font(.title3)
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+            } else {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    LazyHStack(spacing: 24) {
+                        ForEach(chapters) { chapter in
+                            Button {
+                                onSelect(chapter.seconds)
+                            } label: {
+                                markerCard(chapter)
+                            }
+                            .buttonStyle(.card)
+                        }
+                    }
+                    .padding(.vertical, 8)
+                }
+                .focusSection()
+            }
+        }
+        .padding(40)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+    }
+
+    private func markerCard(_ chapter: SceneChapter) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(chapter.formattedTimecode)
+                .font(.title3.monospacedDigit().weight(.semibold))
+            Text(chapter.displayTitle)
+                .font(.headline)
+                .lineLimit(1)
+            if !chapter.subtitleTags.isEmpty {
+                Text(chapter.subtitleTags.joined(separator: ", "))
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(2)
+                    .multilineTextAlignment(.leading)
+            }
+        }
+        .frame(width: 320, alignment: .leading)
+        .padding(20)
     }
 }
 
