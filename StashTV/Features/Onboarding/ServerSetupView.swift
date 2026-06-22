@@ -6,6 +6,7 @@ struct ServerSetupView: View {
     @State private var serverText = ""
     @State private var apiKeyText = ""
     @State private var testState: TestState = .idle
+    @State private var showPairing = false
 
     private enum TestState: Equatable {
         case idle
@@ -29,6 +30,12 @@ struct ServerSetupView: View {
             }
             .frame(maxWidth: 900)
 
+            Button {
+                showPairing = true
+            } label: {
+                Label("Enter from Phone", systemImage: "iphone.and.arrow.forward")
+            }
+
             statusView
 
             HStack(spacing: 24) {
@@ -45,6 +52,13 @@ struct ServerSetupView: View {
         .onAppear {
             serverText = config.serverURL?.absoluteString ?? ""
             apiKeyText = config.apiKey ?? ""
+        }
+        .fullScreenCover(isPresented: $showPairing) {
+            PairingView { url, key in
+                serverText = url
+                apiKeyText = key ?? ""
+                testState = .idle
+            }
         }
     }
 
