@@ -7,6 +7,7 @@ struct ScenePlayerView: View {
 
     @Environment(ServerConfig.self) private var config
     @Environment(SceneStatsStore.self) private var stats
+    @Environment(ScenePerformersStore.self) private var performersStore
     @Environment(\.dismiss) private var dismiss
 
     @State private var queue: PlaybackQueue
@@ -14,6 +15,7 @@ struct ScenePlayerView: View {
     @State private var chapters: [SceneChapter] = []
     @State private var playerProxy = PlayerProxy()
     @State private var selectedPerformer: Performer?
+    @State private var showPerformerPicker = false
 
     init(playlist: ScenePlaylist) {
         self.playlist = playlist
@@ -39,9 +41,11 @@ struct ScenePlayerView: View {
                     isIncrementing: isIncrementing,
                     onIncrement: increment(sceneID:),
                     chapters: chapters,
-                    performers: queue.currentScene?.performers ?? [],
+                    performers: currentPerformers,
                     playerProxy: playerProxy,
-                    onSelectPerformer: { selectedPerformer = $0 }
+                    onSelectPerformer: { selectedPerformer = $0 },
+                    onRemovePerformer: { performer in Task { await removePerformer(performer) } },
+                    onAddPerformer: { showPerformerPicker = true }
                 )
                 .ignoresSafeArea()
             }
@@ -50,6 +54,44 @@ struct ScenePlayerView: View {
         .task(id: queue.currentScene?.id) { await loadChapters() }
         .fullScreenCover(item: $selectedPerformer, onDismiss: { playerProxy.play() }) { performer in
             performerPage(performer)
+        }
+        .fullScreenCover(isPresented: $showPerformerPicker, onDismiss: { playerProxy.play() }) {
+            PerformerPickerView(excludedIDs: Set(currentPerformers.map(\.id))) { performer in
+                Task { await addPerformer(performer) }
+            }
+        }
+    }
+
+    private var currentPerformers: [Performer] {
+        guard let scene = queue.currentScene else { return [] }
+        return performersStore.performers(for: scene.id, fallback: scene.performers)
+    }
+
+    private func addPerformer(_ performer: Performer) async {
+        guard let sceneID = queue.currentScene?.id else { return }
+        var ids = currentPerformers.map(\.id)
+        guard !ids.contains(performer.id) else { return }
+        ids.append(performer.id)
+        await setPerformers(ids, sceneID: sceneID)
+    }
+
+    private func removePerformer(_ performer: Performer) async {
+        guard let sceneID = queue.currentScene?.id else { return }
+        let ids = currentPerformers.map(\.id).filter { $0 != performer.id }
+        await setPerformers(ids, sceneID: sceneID)
+    }
+
+    private func setPerformers(_ ids: [String], sceneID: String) async {
+        do {
+            let client = try StashClient.make(from: config)
+            let result = try await client.execute(
+                SceneSetPerformersMutation(sceneID: sceneID, performerIDs: ids)
+            )
+            if let updated = result.sceneUpdate?.performers {
+                performersStore.setPerformers(updated, for: sceneID)
+            }
+        } catch {
+            print("[Performers] update failed for scene \(sceneID): \(error)")
         }
     }
 
@@ -130,6 +172,8 @@ struct TVPlayerRepresentable: UIViewControllerRepresentable {
     let performers: [Performer]
     let playerProxy: PlayerProxy
     let onSelectPerformer: (Performer) -> Void
+    let onRemovePerformer: (Performer) -> Void
+    let onAddPerformer: () -> Void
 
     private static let topUpThreshold = 3
 
@@ -312,6 +356,11 @@ struct TVPlayerRepresentable: UIViewControllerRepresentable {
             onSelect: { performer in
                 playerProxy.pause()
                 onSelectPerformer(performer)
+            },
+            onRemove: onRemovePerformer,
+            onAdd: {
+                playerProxy.pause()
+                onAddPerformer()
             }
         )
     }
@@ -353,6 +402,8 @@ struct PerformersInfoView: View {
     let performers: [Performer]
     let apiKey: String?
     let onSelect: (Performer) -> Void
+    let onRemove: (Performer) -> Void
+    let onAdd: () -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 24) {
@@ -361,30 +412,54 @@ struct PerformersInfoView: View {
                 .foregroundStyle(.secondary)
                 .tracking(2)
 
-            if performers.isEmpty {
-                Text("No performers for this scene.")
-                    .font(.title3)
-                    .foregroundStyle(.secondary)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
-            } else {
-                ScrollView(.horizontal, showsIndicators: false) {
-                    LazyHStack(spacing: 24) {
-                        ForEach(performers) { performer in
-                            Button {
-                                onSelect(performer)
+            ScrollView(.horizontal, showsIndicators: false) {
+                LazyHStack(spacing: 24) {
+                    ForEach(performers) { performer in
+                        Button {
+                            onSelect(performer)
+                        } label: {
+                            performerCard(performer)
+                        }
+                        .buttonStyle(.card)
+                        .contextMenu {
+                            Button(role: .destructive) {
+                                onRemove(performer)
                             } label: {
-                                performerCard(performer)
+                                Label("Remove from this scene", systemImage: "minus.circle")
                             }
-                            .buttonStyle(.card)
                         }
                     }
-                    .padding(.vertical, 8)
+
+                    Button(action: onAdd) {
+                        addCard
+                    }
+                    .buttonStyle(.card)
                 }
-                .focusSection()
+                .padding(.vertical, 8)
             }
+            .focusSection()
         }
         .padding(40)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+    }
+
+    private var addCard: some View {
+        VStack(spacing: 12) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 12)
+                    .fill(Color.gray.opacity(0.2))
+                Image(systemName: "plus")
+                    .font(.system(size: 50, weight: .semibold))
+                    .foregroundStyle(.secondary)
+            }
+            .frame(width: 200, height: 200)
+
+            Text("Add Performer")
+                .font(.headline)
+                .lineLimit(1)
+                .frame(width: 200)
+        }
+        .padding(12)
     }
 
     private func performerCard(_ performer: Performer) -> some View {

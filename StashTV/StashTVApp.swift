@@ -6,6 +6,7 @@ struct StashTVApp: App {
     @State private var prefs = FilterPreferences()
     @State private var appLock = AppLock()
     @State private var sceneStats = SceneStatsStore()
+    @State private var scenePerformers = ScenePerformersStore()
 
     var body: some SwiftUI.Scene {
         WindowGroup {
@@ -14,6 +15,7 @@ struct StashTVApp: App {
                 .environment(prefs)
                 .environment(appLock)
                 .environment(sceneStats)
+                .environment(scenePerformers)
                 .preferredColorScheme(.dark)
         }
     }
